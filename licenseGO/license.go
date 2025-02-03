@@ -3,16 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os/exec"
 	"strconv"
 )
-
-type AuthResponse struct {
-	Token string `json:"token"`
-}
 
 type LicenseResponse struct {
 	Total      int `json:"total"`
@@ -31,42 +27,14 @@ type License struct {
 }
 
 func main() {
-	values := map[string]string{
-		"auth_login": "",
-		"password":   "",
-	}
-
-	token := authorized(values)
-
-	priv := getLicense(token)
-	comp := getLicenseActive(token)
+	priv := getLicense()
+	comp := getLicenseActive()
 
 	sendDataToZabbix(comp, priv)
 
 }
 
-func authorized(creds map[string]string) string {
-	data, err := json.Marshal(creds)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	resp, err := http.Post("https://elma.ozna.ru/guard/login", "application/json",
-		bytes.NewBuffer(data))
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body) // response body is []byte
-
-	var result AuthResponse
-
-	err = json.Unmarshal(body, &result)
-	fmt.Println(resp.StatusCode)
-
-	return result.Token
-}
-
-func getLicense(token string) License {
+func getLicense() License {
 
 	resp, _ := http.NewRequest(
 		http.MethodPost,
@@ -74,12 +42,11 @@ func getLicense(token string) License {
 		bytes.NewBufferString("[\"_company\"]"),
 	)
 
-	resp.Header.Add("Token", token)
 	resp.Header.Add("Content-Type", "application/json")
 
 	response, err := http.DefaultClient.Do(resp)
 	if err != nil {
-		fmt.Println("Не удалось выполнить запрос на получение лицензии ", err)
+		log.Println("Не удалось выполнить запрос на получение лицензии ", err)
 	}
 
 	defer resp.Body.Close()
@@ -88,30 +55,29 @@ func getLicense(token string) License {
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	err = json.Unmarshal(body, &result)
 
-	fmt.Println(response.StatusCode)
+	log.Println(response.StatusCode)
 	return result
 }
 
-func getLicenseActive(token string) LicenseResponse {
+func getLicenseActive() LicenseResponse {
 	resp, _ := http.Get("https://elma.ozna.ru/api/status/competitive")
-	resp.Header.Add("Token", token)
 
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	result := LicenseResponse{}
 
 	err = json.Unmarshal(body, &result)
-	fmt.Println(resp.StatusCode)
+	log.Println(resp.StatusCode)
 
 	return result
 
